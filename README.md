@@ -26,6 +26,16 @@ The screen opens by itself when a session starts. Type `/hacker` to bring it bac
 
 It only watches: it never changes what Claude writes or runs, and if anything in it fails, the tool call goes through untouched.
 
+## Where it shows
+
+The screen draws wherever Claude Code draws panels: **Claude Code in a terminal** and the **Claude desktop app's Code tab** on your own computer.
+
+- In a terminal, the panel opens by itself on a wide window (144+ columns). On a narrower one, type `/hacker` to open it.
+- If a screen can't place side panels, the code flows through a strip above the prompt box instead.
+- A cloud session watched from the claude.ai web page connects no screen, so nothing can be drawn there. `/hacker` tells you when that's the case.
+
+หน้าจอจะแสดงใน **Claude Code บน terminal** และ **แอป Claude desktop (แท็บ Code)** บนเครื่องของคุณ ถ้าหน้าต่างแคบให้พิมพ์ `/hacker` เพื่อเปิด ส่วน session บนคลาวด์ที่ดูผ่านหน้าเว็บ claude.ai จะไม่มีจอให้วาด
+
 ## Install
 
 At the prompt of a terminal session:
