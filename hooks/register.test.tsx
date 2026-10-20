@@ -16,6 +16,7 @@ const PANE = {
 
 test('a Write pours its code onto the screen, on every surface', async ($, on) => {
   const clock = mock.clock(on)
+  mock.store(on)
   on('command.register', () => ({ value: { command: 'hacker' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -42,6 +43,7 @@ test('a Write pours its code onto the screen, on every surface', async ($, on) =
 
 test('code streams onto the screen while the model is still writing it', async ($, on) => {
   const clock = mock.clock(on)
+  mock.store(on)
   on('command.register', () => ({ value: { command: 'hacker' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -75,8 +77,9 @@ const BAND = (isWorking: boolean) =>
     props: { hasSurvey: false, isWorking, maxRows: 24, bodyColumns: 80, scroll: { offset: 0, bodyRows: 24 }, view: {} },
   }) as const
 
-test('the screen takes the middle of the chat while Claude works, and /hacker turns it off', async ($, on) => {
+test('the screen stays in the middle of the chat, and /hacker turns it off', async ($, on) => {
   const clock = mock.clock(on)
+  mock.store(on)
   on('command.register', () => ({ value: { command: 'hacker' } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('tool.call', () => ({ result: {} }))
@@ -97,7 +100,8 @@ test('the screen takes the middle of the chat while Claude works, and /hacker tu
     await working.unmount()
 
     const idle = await $.ui.mount({ ...BAND(false), surface })
-    expect((await idle.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
+    expect((await idle.find({ type: 'Text', text: /STANDING BY/ }))?.text).toBeTruthy()
+    expect((await idle.find({ type: 'Text', text: /WRITE ▸ \/a\.js/ }))?.text).toBeTruthy()
     await idle.unmount()
   }
 
@@ -110,4 +114,47 @@ test('the screen takes the middle of the chat while Claude works, and /hacker tu
   const off = await $.ui.mount({ ...BAND(true), surface: 'desktop' })
   expect((await off.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
   await off.unmount()
+})
+
+test('the next chat shows the last screen', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.store(on, {
+    screen: {
+      lines: [
+        { kind: 'head', text: 'WRITE ▸ /old.py' },
+        { kind: 'code', text: 'print(1)' },
+      ],
+      isTyping: false,
+      files: 1,
+      bytes: 8,
+      frame: 0,
+    },
+  })
+  on('command.register', () => ({ value: { command: 'hacker' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await clock.advance(200)
+
+  const band = await $.ui.mount({ ...BAND(false), surface: 'desktop' })
+  expect((await band.find({ type: 'Text', text: /WRITE ▸ \/old\.py/ }))?.text).toBeTruthy()
+  expect((await band.find({ type: 'Text', text: /^print\(1\)/ }))?.text).toBeTruthy()
+  await band.unmount()
+})
+
+test('a chat after /hacker turned it off starts with it off', async ($, on) => {
+  mock.clock(on)
+  mock.store(on, { isCenterOff: true })
+  on('command.register', () => ({ value: { command: 'hacker' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const band = await $.ui.mount({ ...BAND(true), surface: 'desktop' })
+  expect((await band.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
+  await band.unmount()
 })

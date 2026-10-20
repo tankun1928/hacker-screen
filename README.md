@@ -2,7 +2,7 @@
 
 A movie-style hacker screen for Claude Code. When Claude writes code, the code flows onto a green-on-black screen as Claude generates it, right in the middle of the chat above the prompt box. There are no popups and no separate windows.
 
-หน้าจอแฮกเกอร์แบบในหนังสำหรับ Claude Code: เวลา Claude เขียนโค้ด โค้ดจะไหลขึ้นจอดำตัวอักษรเขียวแบบเรียลไทม์ ระหว่างที่ Claude กำลังพิมพ์อยู่ แสดงตรงกลางแชทเหนือช่องพิมพ์เลย ไม่มีป๊อปอัปหรือหน้าต่างแยก
+หน้าจอแฮกเกอร์แบบในหนังสำหรับ Claude Code: เวลา Claude เขียนโค้ด โค้ดจะไหลขึ้นจอดำตัวอักษรเขียวแบบเรียลไทม์ ระหว่างที่ Claude กำลังพิมพ์อยู่ จอค้างอยู่ตรงกลางแชทเหนือช่องพิมพ์ตลอด ไม่มีป๊อปอัปหรือหน้าต่างแยก
 
 ```
 ▓▓ CLAUDE // NEURAL CODE INJECTION TERMINAL ▓▓
@@ -22,9 +22,9 @@ serve(port)█
 - `[✓] ACCESS GRANTED` when a write succeeds, `[✗] ACCESS DENIED` when it is refused or fails
 - Matrix-style katakana rain, a scanning progress bar and file/byte counters while code is flowing; a blinking `AWAITING TARGET…` cursor when idle
 
-The screen appears in the middle of the chat, above the prompt box, while Claude is working, and steps aside when the turn is over.
+The screen stays in the middle of the chat, above the prompt box. The rain and the scanner run while Claude works; between turns it keeps the last code on screen, `STANDING BY`. A new chat opens with the last screen from the chat before.
 
-- `/hacker` turns the middle screen off, and on again.
+- `/hacker` turns the middle screen off, and on again. The choice carries over to new chats.
 - `/hacker panel` opens the same screen as a side panel instead.
 
 It only watches: it never changes what Claude writes or runs, and if anything in it fails, the tool call goes through untouched.

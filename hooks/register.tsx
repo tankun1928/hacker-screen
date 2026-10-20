@@ -8,6 +8,7 @@ const TICK_MS = 100
 const MIN_CHARS_PER_TICK = 7
 const MAX_LINES = 200
 const IDLE_AFTER_TICKS = 15
+const KEPT_LINES = 60
 
 const screen = atom({ plugin: 'hacker-screen', key: 'screen' } as const, {
   lines: [],
@@ -163,7 +164,10 @@ async function tick($: EngineInterface) {
   if (queue.length === 0) {
     idleTicks += 1
     if (idleTicks === IDLE_AFTER_TICKS || (idleTicks > IDLE_AFTER_TICKS && idleTicks % 5 === 0)) {
-      await update($, screen, s => ({ ...s, isTyping: false, frame: s.frame + 1 }))
+      const s = await update($, screen, s => ({ ...s, isTyping: false, frame: s.frame + 1 }))
+      if (idleTicks === IDLE_AFTER_TICKS) {
+        await $.store.set('screen', { ...s, lines: s.lines.slice(-KEPT_LINES) }).catch(() => undefined)
+      }
     }
     return
   }
@@ -291,6 +295,17 @@ export const register: Register = on => {
       description: 'Turn the hacker screen in the middle of the chat on or off (/hacker panel: open it as a side panel)',
     })
     $.clock.every(TICK_MS, () => void tick($))
+    // The screen and the on/off switch carry over from the last chat.
+    try {
+      const kept = (await $.store.get('screen')) as Screen | undefined
+      if (kept?.lines !== undefined && (await read($, screen)).lines.length === 0) {
+        await update($, screen, () => ({ ...kept, isTyping: false }))
+      }
+      const wasOff = (await $.store.get('isCenterOff')) === true
+      await update($, isCenterOff, () => wasOff)
+    } catch {
+      // Nothing kept: start with a fresh screen.
+    }
 
     return next(e)
   })
@@ -308,11 +323,12 @@ export const register: Register = on => {
       return { text: `This screen does not place side panels (${opened.reason}).` }
     }
     const isOff = await update($, isCenterOff, off => !off)
+    await $.store.set('isCenterOff', isOff).catch(() => undefined)
 
     return {
       text: isOff
         ? 'Hacker screen off. Type /hacker to turn it back on.'
-        : 'Hacker screen on: it takes the middle of the chat while Claude works.',
+        : 'Hacker screen on: it stays in the middle of the chat, above the prompt.',
     }
   })
 
@@ -355,16 +371,16 @@ export const register: Register = on => {
     return ran
   }).catch(($, e, next) => next(e))
 
-  // The main screen: in the middle of the chat, above the prompt, while
-  // Claude works; it steps aside once the turn is over.
+  // The main screen: it stays in the middle of the chat, above the prompt;
+  // the rain and the scanner run while Claude works.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const s = await read($, screen)
     const isActive = e.props.isWorking || s.isTyping
-    if (e.props.hasSurvey || !isActive || (await read($, isCenterOff))) return next(e)
+    if (e.props.hasSurvey || (await read($, isCenterOff))) return next(e)
     const cols = Math.max(20, Math.min(160, e.props.bodyColumns - 2))
     const rows = Math.min(e.props.maxRows, 22)
 
-    return drawScreen($.ui.resolve(e), s, cols, Math.max(3, rows - 4), true)
+    return drawScreen($.ui.resolve(e), s, cols, Math.max(3, rows - 4), isActive)
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
