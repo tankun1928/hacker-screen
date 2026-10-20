@@ -1,8 +1,8 @@
 # hacker-screen
 
-A movie-style hacker screen for Claude Code. When Claude writes code, the code flows onto a green-on-black screen as Claude generates it, in a pane next to the chat. There are no popups and no separate windows.
+A movie-style hacker screen for Claude Code. When Claude writes code, the code flows onto a green-on-black screen as Claude generates it, right in the middle of the chat above the prompt box. There are no popups and no separate windows.
 
-หน้าจอแฮกเกอร์แบบในหนังสำหรับ Claude Code: เวลา Claude เขียนโค้ด โค้ดจะไหลขึ้นจอดำตัวอักษรเขียวแบบเรียลไทม์ ระหว่างที่ Claude กำลังพิมพ์อยู่ แสดงในแผงข้างแชทของ Claude เลย ไม่มีป๊อปอัปหรือหน้าต่างแยก
+หน้าจอแฮกเกอร์แบบในหนังสำหรับ Claude Code: เวลา Claude เขียนโค้ด โค้ดจะไหลขึ้นจอดำตัวอักษรเขียวแบบเรียลไทม์ ระหว่างที่ Claude กำลังพิมพ์อยู่ แสดงตรงกลางแชทเหนือช่องพิมพ์เลย ไม่มีป๊อปอัปหรือหน้าต่างแยก
 
 ```
 ▓▓ CLAUDE // NEURAL CODE INJECTION TERMINAL ▓▓
@@ -22,19 +22,18 @@ serve(port)█
 - `[✓] ACCESS GRANTED` when a write succeeds, `[✗] ACCESS DENIED` when it is refused or fails
 - Matrix-style katakana rain, a scanning progress bar and file/byte counters while code is flowing; a blinking `AWAITING TARGET…` cursor when idle
 
-The screen opens by itself when a session starts. Type `/hacker` to bring it back if you close it.
+The screen appears in the middle of the chat, above the prompt box, while Claude is working, and steps aside when the turn is over.
+
+- `/hacker` turns the middle screen off, and on again.
+- `/hacker panel` opens the same screen as a side panel instead.
 
 It only watches: it never changes what Claude writes or runs, and if anything in it fails, the tool call goes through untouched.
 
 ## Where it shows
 
-The screen draws wherever Claude Code draws panels: **Claude Code in a terminal** and the **Claude desktop app's Code tab** on your own computer.
+The screen draws in **Claude Code in a terminal** and in the **Claude desktop app's Code tab**, in a session running on your own computer. A cloud session watched from the claude.ai web page connects no screen, so nothing can be drawn there (`/hacker panel` tells you when that's the case).
 
-- In a terminal, the panel opens by itself on a wide window (144+ columns). On a narrower one, type `/hacker` to open it.
-- If a screen can't place side panels, the code flows through a strip above the prompt box instead.
-- A cloud session watched from the claude.ai web page connects no screen, so nothing can be drawn there. `/hacker` tells you when that's the case.
-
-หน้าจอจะแสดงใน **Claude Code บน terminal** และ **แอป Claude desktop (แท็บ Code)** บนเครื่องของคุณ ถ้าหน้าต่างแคบให้พิมพ์ `/hacker` เพื่อเปิด ส่วน session บนคลาวด์ที่ดูผ่านหน้าเว็บ claude.ai จะไม่มีจอให้วาด
+หน้าจอจะแสดงใน **Claude Code บน terminal** และ **แอป Claude desktop (แท็บ Code)** ที่รัน session บนเครื่องของคุณ ส่วน session บนคลาวด์ที่ดูผ่านหน้าเว็บ claude.ai จะไม่มีจอให้วาด
 
 ## Install
 

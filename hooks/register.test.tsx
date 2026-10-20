@@ -67,3 +67,47 @@ test('code streams onto the screen while the model is still writing it', async (
   expect((await ui.find({ type: 'Text', text: /^ {2}return "in"/ }))?.text).toBeTruthy()
   await ui.unmount()
 })
+
+const BAND = (isWorking: boolean) =>
+  ({
+    plugin: 'hacker-screen',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking, maxRows: 24, bodyColumns: 80, scroll: { offset: 0, bodyRows: 24 }, view: {} },
+  }) as const
+
+test('the screen takes the middle of the chat while Claude works, and /hacker turns it off', async ($, on) => {
+  const clock = mock.clock(on)
+  on('command.register', () => ({ value: { command: 'hacker' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('tool.call', () => ({ result: {} }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/a.js', content: 'let x = 1\n' })
+  await clock.advance(3000)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const working = await $.ui.mount({ ...BAND(true), surface })
+    expect((await working.find({ type: 'Text', text: /WRITE ▸ \/a\.js/ }))?.text).toBeTruthy()
+    expect((await working.find({ type: 'Text', text: /SCANNING TARGET/ }))?.text).toBeTruthy()
+    await working.unmount()
+
+    const idle = await $.ui.mount({ ...BAND(false), surface })
+    expect((await idle.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
+    await idle.unmount()
+  }
+
+  await $.command.run({
+    command: 'hacker',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 80 },
+  })
+  const off = await $.ui.mount({ ...BAND(true), surface: 'desktop' })
+  expect((await off.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
+  await off.unmount()
+})

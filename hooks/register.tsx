@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { Elements, EngineInterface, Register } from 'claude-code'
 
 import type { Line, LineKind, Screen } from '../types'
 
@@ -16,6 +16,7 @@ const screen = atom({ plugin: 'hacker-screen', key: 'screen' } as const, {
   bytes: 0,
   frame: 0,
 } as Screen)
+const isCenterOff = atom({ plugin: 'hacker-screen', key: 'isCenterOff' } as const, false)
 
 // What the typewriter still has to put on screen, in order.
 type Op =
@@ -24,11 +25,9 @@ type Op =
   | { t: 'line'; kind: LineKind; text: string }
 
 const queue: Op[] = []
-let isPanePlaced = false
 
 async function openPane($: EngineInterface) {
   const opened = await $.ui.open({ id: PANE, title: 'HACKER MODE' })
-  isPanePlaced = opened.isPlaced
 
   return opened
 }
@@ -242,39 +241,79 @@ const COLOR: Record<LineKind, string> = {
   sys: '#1f7a3a',
 }
 
+type Ui = Pick<Elements['desktop'], 'Box' | 'Text'>
+
+// The screen itself, drawn the same in the middle of the chat and in a panel.
+function drawScreen({ Box, Text }: Ui, s: Screen, cols: number, room: number, isActive: boolean) {
+  const shown = s.lines.slice(-room)
+  const cursor = s.isTyping || s.frame % 2 === 0 ? '█' : ' '
+  const status = s.isTyping ? 'INJECTING CODE' : isActive ? 'SCANNING TARGET' : 'STANDING BY'
+
+  return (
+    <Box flexDirection="column" backgroundColor="#000000" paddingX={1} flexGrow={1}>
+      <Text color="#39ff14" bold wrap="truncate-end">
+        ▓▓ CLAUDE // NEURAL CODE INJECTION TERMINAL ▓▓
+      </Text>
+      <Text color="#1f7a3a" wrap="truncate-end">
+        {isActive ? rain(cols) : ' '.repeat(cols)}
+      </Text>
+      <Text color="#00e5ff" wrap="truncate-end">
+        FILES {s.files} · BYTES {s.bytes.toLocaleString('en-US')} · {status}{' '}
+        {isActive ? bar(s.frame, 12) : ''}
+      </Text>
+      <Text color="#1f7a3a" wrap="truncate-end">
+        {'─'.repeat(cols)}
+      </Text>
+      {shown.length === 0 && (
+        <Text color="#39ff14">
+          {'> AWAITING TARGET… '}
+          {cursor}
+        </Text>
+      )}
+      {shown.map((line: Line, i: number) => (
+        <Text
+          color={COLOR[line.kind]}
+          bold={line.kind === 'head' || line.kind === 'ok' || line.kind === 'fail'}
+          wrap="truncate-end"
+        >
+          {line.kind === 'head' ? `>>> ${line.text}` : line.text === '' ? ' ' : line.text}
+          {i === shown.length - 1 ? cursor : ''}
+        </Text>
+      ))}
+    </Box>
+  )
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'hacker',
-      description: 'Open the movie-style hacker screen beside the chat',
+      description: 'Turn the hacker screen in the middle of the chat on or off (/hacker panel: open it as a side panel)',
     })
-    void openPane($)
     $.clock.every(TICK_MS, () => void tick($))
 
     return next(e)
   })
 
-  on('command.run', { command: 'hacker' }, async $ => {
-    const opened = await openPane($)
-
-    if (opened.isPlaced) return { text: 'Hacker screen online.' }
-    if (opened.reason.startsWith('no-surface')) {
-      return {
-        text: 'Hacker screen is ready, but nothing that draws Claude Code panels is connected to this session (a web viewer of a cloud session draws none). Run Claude Code in a terminal or the desktop app to see it.',
+  on('command.run', { command: 'hacker' }, async ($, e) => {
+    if (e.args.trim() === 'panel') {
+      const opened = await openPane($)
+      if (opened.isPlaced) return { text: 'Hacker panel online.' }
+      if (opened.reason.startsWith('no-surface')) {
+        return {
+          text: 'Nothing that draws Claude Code panels is connected to this session (a web viewer of a cloud session draws none). Run Claude Code in a terminal or the desktop app to see it.',
+        }
       }
+
+      return { text: `This screen does not place side panels (${opened.reason}).` }
     }
+    const isOff = await update($, isCenterOff, off => !off)
 
     return {
-      text: `This screen does not place side panels (${opened.reason}). The code pours through a strip above the prompt instead.`,
+      text: isOff
+        ? 'Hacker screen off. Type /hacker to turn it back on.'
+        : 'Hacker screen on: it takes the middle of the chat while Claude works.',
     }
-  })
-
-  // A client that joins later (the app, a phone) gets the screen too.
-  on('session.attach', async ($, e, next) => {
-    const ran = await next(e)
-    void openPane($)
-
-    return ran
   })
 
   // Watch the model's response as it streams: each Write/Edit/Bash call's
@@ -316,75 +355,23 @@ export const register: Register = on => {
     return ran
   }).catch(($, e, next) => next(e))
 
+  // The main screen: in the middle of the chat, above the prompt, while
+  // Claude works; it steps aside once the turn is over.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const s = await read($, screen)
+    const isActive = e.props.isWorking || s.isTyping
+    if (e.props.hasSurvey || !isActive || (await read($, isCenterOff))) return next(e)
+    const cols = Math.max(20, Math.min(160, e.props.bodyColumns - 2))
+    const rows = Math.min(e.props.maxRows, 22)
+
+    return drawScreen($.ui.resolve(e), s, cols, Math.max(3, rows - 4), true)
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    isPanePlaced = true
-    const { Box, Text } = $.ui.resolve(e)
     const s = await read($, screen)
     const cols = Math.max(20, Math.min(120, (e.viewport?.columns ?? 80) - 4))
     const room = Math.max(4, (e.viewport?.rows ?? 30) - 8)
-    const shown = s.lines.slice(-room)
-    const cursor = s.isTyping || s.frame % 2 === 0 ? '█' : ' '
-    const status = s.isTyping ? 'INJECTING CODE' : 'STANDING BY'
 
-    return (
-      <Box flexDirection="column" backgroundColor="#000000" paddingX={1} flexGrow={1}>
-        <Text color="#39ff14" bold wrap="truncate-end">
-          ▓▓ CLAUDE // NEURAL CODE INJECTION TERMINAL ▓▓
-        </Text>
-        <Text color="#1f7a3a" wrap="truncate-end">
-          {s.isTyping ? rain(cols) : ' '.repeat(cols)}
-        </Text>
-        <Text color="#00e5ff" wrap="truncate-end">
-          FILES {s.files} · BYTES {s.bytes.toLocaleString('en-US')} · {status}{' '}
-          {s.isTyping ? bar(s.frame, 12) : ''}
-        </Text>
-        <Text color="#1f7a3a" wrap="truncate-end">
-          {'─'.repeat(cols)}
-        </Text>
-        {shown.length === 0 && (
-          <Text color="#39ff14">
-            {'> AWAITING TARGET… '}
-            {cursor}
-          </Text>
-        )}
-        {shown.map((line: Line, i: number) => (
-          <Text
-            color={COLOR[line.kind]}
-            bold={line.kind === 'head' || line.kind === 'ok' || line.kind === 'fail'}
-            wrap="truncate-end"
-          >
-            {line.kind === 'head' ? `>>> ${line.text}` : line.text === '' ? ' ' : line.text}
-            {i === shown.length - 1 ? cursor : ''}
-          </Text>
-        ))}
-      </Box>
-    )
-  })
-
-  // Where no side panel shows, the last lines pour through a strip above the
-  // prompt instead, while Claude is writing.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const s = await read($, screen)
-    if (isPanePlaced || e.props.hasSurvey || !s.isTyping) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
-    const cols = Math.max(20, Math.min(120, (e.viewport?.columns ?? 80) - 4))
-    const shown = s.lines.slice(-8)
-
-    return (
-      <Box flexDirection="column" backgroundColor="#000000" paddingX={1}>
-        <Text color="#39ff14" bold wrap="truncate-end">
-          ▓▓ HACKER MODE ▓▓ FILES {s.files} · BYTES {s.bytes.toLocaleString('en-US')} {bar(s.frame, 12)}
-        </Text>
-        <Text color="#1f7a3a" wrap="truncate-end">
-          {rain(cols)}
-        </Text>
-        {shown.map((line: Line, i: number) => (
-          <Text color={COLOR[line.kind]} bold={line.kind === 'head'} wrap="truncate-end">
-            {line.kind === 'head' ? `>>> ${line.text}` : line.text === '' ? ' ' : line.text}
-            {i === shown.length - 1 ? '█' : ''}
-          </Text>
-        ))}
-      </Box>
-    )
+    return drawScreen($.ui.resolve(e), s, cols, room, s.isTyping)
   })
 }

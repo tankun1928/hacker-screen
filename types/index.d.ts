@@ -10,6 +10,6 @@ export type Screen = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'hacker-screen': { screen: Screen }
+    'hacker-screen': { screen: Screen; isCenterOff: boolean }
   }
 }
