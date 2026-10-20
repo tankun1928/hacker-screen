@@ -164,3 +164,26 @@ test('a chat after /hacker turned it off starts with it off', async ($, on) => {
   expect((await band.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
   await band.unmount()
 })
+
+test('the screen keeps every line to scroll back through', async ($, on) => {
+  const clock = mock.clock(on)
+  mock.store(on)
+  on('command.register', () => ({ value: { command: 'hacker' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('tool.call', () => ({ result: {} }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const band = await $.ui.mount({ ...BAND(true), surface: 'desktop' })
+  const content = Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join('\n')
+  await $.tool.call({ tool: 'Write', file_path: '/long.txt', content })
+  await clock.advance(5000)
+
+  expect((await band.find({ type: 'Text', text: /^line 1$/ }))?.text).toBe('line 1')
+  expect((await band.find({ type: 'Text', text: /^line 60/ }))?.text).toBeTruthy()
+  await band.unmount()
+})

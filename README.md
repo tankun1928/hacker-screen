@@ -57,6 +57,7 @@ claude plugin install hacker-screen --marketplace tankun1928/hacker-screen
 ## Use
 
 - The screen shows by itself. Ask Claude to write some code and watch it flow.
+- Scroll up in the screen to read earlier code (the last 200 lines are kept). While you're scrolled up it stays put; scroll back to the bottom and it follows the newest line again.
 - `/hacker` turns the screen off, and on again. The choice carries over to new chats.
 - `/hacker panel` opens the same screen as a side panel instead.
 

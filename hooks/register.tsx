@@ -27,6 +27,13 @@ type Op =
 
 const queue: Op[] = []
 
+// Where the screen is drawn, and whether each place follows the newest line:
+// it stops following when the person scrolls up, and starts again at the end.
+let bandId: string | null = null
+let isBandFollowing = true
+let isPaneFollowing = true
+let needsBandScroll = true
+
 async function openPane($: EngineInterface) {
   const opened = await $.ui.open({ id: PANE, title: 'HACKER MODE' })
 
@@ -158,9 +165,21 @@ function pendingChars() {
   return n
 }
 
+// Keeps the newest line in view while the person hasn't scrolled away.
+async function follow($: EngineInterface) {
+  if (needsBandScroll && bandId !== null) {
+    needsBandScroll = false
+    await $.ui.scroll({ in: bandId, to: 'end' }).catch(() => undefined)
+  }
+  if (isPaneFollowing && idleTicks === 0) {
+    await $.ui.scroll({ in: PANE, to: 'end' }).catch(() => undefined)
+  }
+}
+
 // One frame of the typewriter: moves a handful of characters from the queue
 // onto the screen, faster when a lot is waiting so the screen never lags far.
 async function tick($: EngineInterface) {
+  await follow($)
   if (queue.length === 0) {
     idleTicks += 1
     if (idleTicks === IDLE_AFTER_TICKS || (idleTicks > IDLE_AFTER_TICKS && idleTicks % 5 === 0)) {
@@ -172,6 +191,7 @@ async function tick($: EngineInterface) {
     return
   }
   idleTicks = 0
+  needsBandScroll = isBandFollowing
   let budget = Math.max(MIN_CHARS_PER_TICK, Math.ceil(pendingChars() / 25))
 
   await update($, screen, s => {
@@ -332,6 +352,15 @@ export const register: Register = on => {
     }
   })
 
+  // Scrolled to the end, a site follows new lines again; scrolled up, it stays.
+  on('ui.scroll', async ($, e, next) => {
+    const isAtEnd = e.offset >= e.contentRows - e.bodyRows - 1
+    if (e.component === 'AbovePrompt' && e.requestId === bandId) isBandFollowing = isAtEnd
+    if (e.component === 'Pane' && e.requestId === PANE) isPaneFollowing = isAtEnd
+
+    return next(e)
+  })
+
   // Watch the model's response as it streams: each Write/Edit/Bash call's
   // arguments pour onto the screen while Claude is still writing them.
   on('turn.step', async function* ($, e, next) {
@@ -380,13 +409,16 @@ export const register: Register = on => {
     const s = await read($, screen)
     const isActive = e.props.isWorking || s.isTyping
     if (e.props.hasSurvey || (await read($, isCenterOff))) return below
+    if (bandId !== e.requestId) {
+      bandId = e.requestId
+      needsBandScroll = true
+    }
     const cols = Math.max(20, Math.min(160, e.props.bodyColumns - 2))
-    const rows = Math.min(e.props.maxRows, 22)
     const { Box } = $.ui.resolve(e)
 
     return (
       <Box flexDirection="column">
-        {drawScreen($.ui.resolve(e), s, cols, Math.max(3, rows - 4), isActive)}
+        {drawScreen($.ui.resolve(e), s, cols, MAX_LINES, isActive)}
         {below}
       </Box>
     )
@@ -395,8 +427,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const s = await read($, screen)
     const cols = Math.max(20, Math.min(120, (e.viewport?.columns ?? 80) - 4))
-    const room = Math.max(4, (e.viewport?.rows ?? 30) - 8)
 
-    return drawScreen($.ui.resolve(e), s, cols, room, s.isTyping)
+    return drawScreen($.ui.resolve(e), s, cols, MAX_LINES, s.isTyping)
   })
 }
