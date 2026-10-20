@@ -1,0 +1,6 @@
+{
+  "name": "hacker-screen",
+  "owner": { "name": "tankun1928" },
+  "description": "Movie-style hacker screen that shows the code Claude writes as it streams",
+  "plugins": [{ "name": "hacker-screen", "source": "./" }]
+}

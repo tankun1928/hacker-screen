@@ -1,0 +1,7 @@
+{
+  "name": "hacker-screen",
+  "version": "0.1.0",
+  "description": "A movie-style hacker pane: watch the code Claude writes pour onto a green-on-black screen as it is generated",
+  "author": { "name": "tankun1928" },
+  "types": "./types/index.d.ts"
+}
