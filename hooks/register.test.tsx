@@ -132,6 +132,11 @@ test('the next chat shows the last screen', async ($, on) => {
   })
   on('command.register', () => ({ value: { command: 'hacker' } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await clock.advance(200)
@@ -139,6 +144,7 @@ test('the next chat shows the last screen', async ($, on) => {
   const band = await $.ui.mount({ ...BAND(false), surface: 'desktop' })
   expect((await band.find({ type: 'Text', text: /WRITE ▸ \/old\.py/ }))?.text).toBeTruthy()
   expect((await band.find({ type: 'Text', text: /^print\(1\)/ }))?.text).toBeTruthy()
+  expect((await band.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
   await band.unmount()
 })
 

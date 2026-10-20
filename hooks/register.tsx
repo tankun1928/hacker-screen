@@ -373,14 +373,23 @@ export const register: Register = on => {
 
   // The main screen: it stays in the middle of the chat, above the prompt;
   // the rain and the scanner run while Claude works.
+  // Whatever else draws there (another plugin's band, the engine's) stays,
+  // under the screen.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const below = await next(e)
     const s = await read($, screen)
     const isActive = e.props.isWorking || s.isTyping
-    if (e.props.hasSurvey || (await read($, isCenterOff))) return next(e)
+    if (e.props.hasSurvey || (await read($, isCenterOff))) return below
     const cols = Math.max(20, Math.min(160, e.props.bodyColumns - 2))
     const rows = Math.min(e.props.maxRows, 22)
+    const { Box } = $.ui.resolve(e)
 
-    return drawScreen($.ui.resolve(e), s, cols, Math.max(3, rows - 4), isActive)
+    return (
+      <Box flexDirection="column">
+        {drawScreen($.ui.resolve(e), s, cols, Math.max(3, rows - 4), isActive)}
+        {below}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
